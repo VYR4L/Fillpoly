@@ -6,7 +6,7 @@ import sys
 
 
 drawing = False  # Se o usuário está desenhando um polígono
-polygon_points = []  # Lista de pontos do polígono corrente
+polygon_points = []  # Lista de pontos do polígono atual
 polygons = []  # Lista de polígonos desenhados (pontos e cor)
 current_polygon = None  # Polígono atual
 fill_edges = True  # Se devemos desenhar as arestas do polígono
@@ -18,18 +18,57 @@ edge_color = (0, 255, 255)  # Amarelo
 
 def draw_polygon(img, points, color, edges=True):
     '''
-    Função para desenhar um polígono na imagem.
+    Função para desenhar e preencher um polígono usando um algoritmo de varredura.
 
     param img: Imagem onde o polígono será desenhado
     param points: Lista de pontos do polígono
     param color: Cor do polígono
     param edges: Se devemos desenhar as arestas do polígono
     '''
-    if len(points) > 1:
-        # Preenchendo o polígono
-        cv2.fillPoly(img, [np.array(points, np.int32)], color)
+    # Se temos pelo menos 3 pontos para formar um polígono
+    if len(points) > 2:
+        # Preencher o polígono usando o algoritmo de varredura
+        fill_polygon(img, points, color)
+        # Se edges for True, desenha as arestas do polígono
         if edges:
             cv2.polylines(img, [np.array(points, np.int32)], isClosed=True, color=edge_color, thickness=2)
+
+
+def fill_polygon(img, points, color):
+    '''
+    Preenche um polígono com a cor especificada usando o algoritmo de varredura.
+
+    param img: Imagem onde o polígono será preenchido
+    param points: Lista de pontos do polígono
+    param color: Cor usada para preencher o polígono (BGR)
+    '''
+    # Encontrar os valores mínimo e máximo de y (altura) para a varredura
+    points = np.array(points, np.int32)
+    min_y = np.min(points[:, 1])
+    max_y = np.max(points[:, 1])
+
+    # Varre cada linha entre min_y e max_y
+    for y in range(min_y, max_y + 1):
+        # Encontra todas as interseções entre a linha y e as arestas do polígono
+        intersec_x = []
+
+        for i in range(len(points)):
+            p1 = points[i]
+            p2 = points[(i + 1) % len(points)]  # Pega o próximo ponto, formando a aresta
+
+            # Verifica se a linha y intersecta a aresta (p1, p2)
+            if (p1[1] <= y < p2[1]) or (p2[1] <= y < p1[1]):  # Apenas se há intersecção em y
+                # Calcula o ponto de interseção em x usando interpolação linear
+                x = int(p1[0] + (y - p1[1]) * (p2[0] - p1[0]) / (p2[1] - p1[1]))
+                intersec_x.append(x)
+
+        # Ordena os pontos de interseção em x
+        intersec_x.sort()
+
+        # Preenche os segmentos da linha
+        for i in range(0, len(intersec_x), 2):
+            if i + 1 < len(intersec_x):  # Para evitar pares incompletos
+                cv2.line(img, (intersec_x[i], y), (intersec_x[i + 1], y), color)
 
 
 def mouse_callback(event, x, y, flags, param):
@@ -105,9 +144,11 @@ def delete_polygon(polygon_index):
     global polygons
     polygons.pop(polygon_index)
 
+
 # Configurações da janela
 cv2.namedWindow("Polygons")
 cv2.setMouseCallback("Polygons", mouse_callback)
+
 
 # Janela principal do programa
 def main():
@@ -115,7 +156,7 @@ def main():
 
     # Dimensões da tela
     width, height = 800, 600
-    img = np.ones((height, width, 3), dtype=np.uint8) * 255  
+    img = np.ones((height, width, 3), dtype=np.uint8) * 255
 
     while True:
         temp_img = img.copy()
@@ -139,7 +180,7 @@ def main():
             drawing = False
             polygon_points = []
 
-        elif key == 27: # Esc: fecha o programa
+        elif key == 27:  # Esc: fecha o programa
             break
 
         elif key == ord('a'):  # Alterna entre desenhar ou não as arestas
@@ -147,5 +188,6 @@ def main():
 
     cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
-   main()
+    main()
